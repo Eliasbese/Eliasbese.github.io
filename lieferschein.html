@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lieferschein Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1e3a8a;
+            --border-color: #cbd5e1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 20px;
+            color: #334155;
+            background-color: #f8fafc;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        h1, h2 {
+            color: var(--primary-color);
+            margin-top: 0;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .section {
+            background: #f1f5f9;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .product-table th, .product-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .product-table th {
+            background-color: #e2e8f0;
+        }
+
+        .qty-input {
+            width: 70px;
+            padding: 6px;
+            border: 2px solid var(--primary-color);
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .print-btn {
+            background-color: #22c55e;
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.4);
+            display: block; /* Garantiert sichtbar */
+        }
+
+        .print-btn:hover {
+            background-color: #16a34a;
+        }
+
+        .barcode-display {
+            font-family: 'Libre Barcode 39', sans-serif;
+            font-size: 42px;
+            line-height: 1;
+            display: block;
+            letter-spacing: 1px;
+        }
+
+        .barcode-sub {
+            font-size: 10px;
+            color: #64748b;
+            font-family: monospace;
+            display: block;
+        }
+
+        .print-qty-text { display: none; }
+
+        @media print {
+            body { background: white; margin: 0; color: black; }
+            .container { box-shadow: none; padding: 0; max-width: 100%; }
+            h1, .section, .print-btn { display: none !important; }
+            .product-table th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .product-table tbody tr { display: none; }
+            .product-table tbody tr.has-qty { display: table-row !important; }
+            .qty-input { display: none !important; }
+            .print-qty-text { display: inline !important; font-weight: bold; font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Lieferschein & Abholbeleg Drucker</h1>
+    
+    <div class="section">
+        <h2>1. Kundendaten eingeben</h2>
+        <div class="form-group">
+            <label>Kundenname:</label>
+            <input type="text" id="cust-name" value="Max Mustermann" oninput="document.getElementById('p-name').innerText=this.value">
+        </div>
+        <div class="form-group">
+            <label>Bestellnummer:</label>
+            <input type="text" id="cust-order" value="#10001" oninput="document.getElementById('p-order').innerText=this.value">
+        </div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <table style="width: 100%;">
+            <tr>
+                <td>
+                    <h2 style="margin:0; border:none;">LIEFERSCHEIN / ABHOLUNG</h2>
+                    <p style="margin: 5px 0;"><strong>Kunde:</strong> <span id="p-name">Max Mustermann</span></p>
+                    <p style="margin: 5px 0;"><strong>Bestell-Nr:</strong> <span id="p-order">#10001</span></p>
+                </td>
+                <td style="text-align: right; vertical-align: top;">
+                    <strong>Ihr Onlineshop</strong><br>
+                    <small style="color:#64748b;">Click & Collect Beleg</small>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <h2>2. Bestellte Mengen eintragen</h2>
+    <table class="product-table">
+        <thead>
+            <tr>
+                <th style="width: 80px; text-align: center;">Menge</th>
+                <th>Produktbezeichnung</th>
+                <th style="width: 100px;">Preis</th>
+                <th style="width: 250px;">Barcode (Für mixxamm-Kasse)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- GETRÄNKE -->
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Apfelschorle</strong></td>
+                <td>— €</td>
+                <td><span class="barcode-display">*4034843020242*</span><span class="barcode-sub">4034843020242</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Capri-Sun 200 ml Multivitamin</strong></td>
+                <td>1,00 €</td>
+                <td><span class="barcode-display">*4000177032695*</span><span class="barcode-sub">4000177032695</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Capri-Sun 200 ml Mystery Dragon</strong></td>
+                <td>1,00 €</td>
+                <td><span class="barcode-display">*3760079798310*</span><span class="barcode-sub">3760079798310</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Capri-Sun 200 ml Orange</strong></td>
+                <td>1,00 €</td>
+                <td><span class="barcode-display">*4000177032732*</span><span class="barcode-sub">4000177032732</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Capri-Sun 330 ml Multivitamin</strong></td>
+                <td>1,50 €</td>
+                <td><span class="barcode-display">*4000177033708*</span><span class="barcode-sub">4000177033708</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Emyo Limonade</strong></td>
+                <td>— €</td>
+                <td><span class="barcode-display">*4260065634107*</span><span class="barcode-sub">4260065634107</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Emyo Limonade Cherry Vanilla</strong></td>
+                <td>2,50 €</td>
+                <td><span class="barcode-display">*4262378650454*</span><span class="barcode-sub">4262378650454</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Emyo Limonade Dragon Fruit</strong></td>
+                <td>2,50 €</td>
+                <td><span class="barcode-display">*4262378650034*</span><span class="barcode-sub">4262378650034</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Paulberger Cola</strong></td>
+                <td>1,50 €</td>
+                <td><span class="barcode-display">*4262420890234*</span><span class="barcode-sub">4262420890234</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Paulberger Limonade Cherry (Dose)</strong></td>
+                <td>1,50 €</td>
+                <td><span class="barcode-display">*4262420890319*</span><span class="barcode-sub">4262420890319</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Solevita Cola und Lemon Flavour 200 ml</strong></td>
+                <td>1,00 €</td>
+                <td><span class="barcode-display">*20561420*</span><span class="barcode-sub">20561420</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Solevita Multivitamin 200 ml</strong></td>
+                <td>1,00 €</td>
+                <td><span class="barcode-display">*4335619195004*</span><span class="barcode-sub">4335619195004</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Solevita Orange 200 ml</strong></td>
+                <td>1,00 €</td>
+                <td><span class="barcode-display">*4335619194991*</span><span class="barcode-sub">4335619194991</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Solevita Red Fruit Flavour 200 ml</strong></td>
+                <td>1,00 €</td>
+                <td><span class="barcode-display">*4335619383548*</span><span class="barcode-sub">4335619383548</span></td>
+            </tr>
+            <!-- SÜSSIGKEITEN -->
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Ahoj-Brause Brocken</strong></td>
+                <td>0,50 €</td>
+                <td><span class="barcode-display">*15753755*</span><span class="barcode-sub">15753755</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Center Shock blau</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*80834946*</span><span class="barcode-sub">80834946</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Center Shock grün</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*80785521*</span><span class="barcode-sub">80785521</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Center Shock hellblau</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*80874003*</span><span class="barcode-sub">80874003</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Center Shock schwarz</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*80785569*</span><span class="barcode-sub">80785569</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Center Shock silber</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*80785569*</span><span class="barcode-sub">80785569</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Duplo</strong></td>
+                <td>0,50 €</td>
+                <td><span class="barcode-display">*40084015*</span><span class="barcode-sub">40084015</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Fritt</strong></td>
+                <td>0,10 €</td>
+                <td><span class="barcode-display">*FRITT001*</span><span class="barcode-sub">FRITT001</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Haribo Gummibärchen (Tüte)</strong></td>
+                <td>0,25 €</td>
+                <td><span class="barcode-display">*HARIBO01*</span><span class="barcode-sub">HARIBO01</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Haribo Minz Bonbon</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*HARIBO02*</span><span class="barcode-sub">HARIBO02</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Haribo Roulette groß</strong></td>
+                <td>— €</td>
+                <td><span class="barcode-display">*HARIBO03*</span><span class="barcode-sub">HARIBO03</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Haribo Roulette Cola</strong></td>
+                <td>0,60 €</td>
+                <td><span class="barcode-display">*4001686383025*</span><span class="barcode-sub">4001686383025</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Karamell-Keks</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*15725721*</span><span class="barcode-sub">15725721</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Karamell-Riesen</strong></td>
+                <td>0,50 €</td>
+                <td><span class="barcode-display">*RIESEN01*</span><span class="barcode-sub">RIESEN01</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Maoam Streifen</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*MAOAM001*</span><span class="barcode-sub">MAOAM001</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Ritter Sport</strong></td>
+                <td>3,50 €</td>
+                <td><span class="barcode-display">*RITTER01*</span><span class="barcode-sub">RITTER01</span></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Tennisball Kaugummi</strong></td>
+                <td>0,20 €</td>
+                <td><span class="barcode-display">*8410525186608*</span><span class="barcode-sub">8410525186608</span></td>
+            </tr>
+            <!-- SONSTIGES -->
+            <tr>
+                <td style="text-align: center;">
+                    <input type="number" class="qty-input" value="0" min="0" oninput="this.closest('tr').className=(parseInt(this.value)>0?'has-qty':''); this.nextElementSibling.innerText=this.value">
+                    <span class="print-qty-text">0</span>
+                </td>
+                <td><strong>Papiertüte</strong></td>
+                <td>0,10 €</td>
+                <td><span class="barcode-display">*4025648995194*</span><span class="barcode-sub">4025648995194</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <button type="button" class="print-btn" onclick="window.print()">Lieferschein jetzt drucken</button>
+</div>
+
+</body>
+</html>
